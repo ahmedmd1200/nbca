@@ -2,49 +2,42 @@
 session_start();
 
 // الاتصال بقاعدة البيانات
-$conn = new mysqli("localhost","root","","survey_db");
-if ($conn->connect_error) { 
-    die("فشل الاتصال: " . $conn->connect_error); 
-}		
+$conn = new mysqli('fdb1031.runhosting.com','4728212_elhmamy','0172301281m','4728212_elhmamy');
+if ($conn->connect_error) { die("Connection failed: " . $conn->connect_error); }
 
-$login_error = "";
-$login_msg = "";
-$register_error = "";
-$register_msg = "";
+$msg = "";
+$error = "";
 
 /* تسجيل مستخدم جديد */
 if(isset($_POST['register'])){
     $username = trim($_POST['username']);
-    $password = trim($_POST['password']);
+    $password = trim($_POST['password']); // نص صريح بدون هاش
     $role = $_POST['role'] ?? 'user';
     $manager_code = $_POST['manager_code'] ?? '';
 
-    // تحقق كود المدير
     if($role === "manager" && $manager_code !== "1"){
-        $register_error = "❌ كود المدير غير صحيح";
+        $error = "❌ انت مش مدير!";
     } else {
-        // تحقق من اسم المستخدم موجود
+        // تحقق من تكرار اسم المستخدم
         $check = $conn->prepare("SELECT id FROM users WHERE username=?");
         $check->bind_param("s",$username);
         $check->execute();
         $check->store_result();
 
         if($check->num_rows > 0){
-            $register_error = "❌ اسم المستخدم مستخدم بالفعل";
+            $error = "❌ اسم المستخدم مستخدم بالفعل";
         } else {
-            // إدخال المستخدم بدون hash
             $stmt = $conn->prepare("INSERT INTO users (username,password,role) VALUES (?,?,?)");
             $stmt->bind_param("sss",$username,$password,$role);
 
             if($stmt->execute()){
-                $register_msg = "🎉 تم إنشاء الحساب بنجاح";
+                $msg = "🎉 تم إنشاء الحساب بنجاح!";
+                $error = "";
             } else {
-                $register_error = "❌ حدث خطأ أثناء إنشاء الحساب";
+                $error = "❌ حدث خطأ أثناء إنشاء الحساب";
             }
-
             $stmt->close();
         }
-
         $check->close();
     }
 }
@@ -52,7 +45,7 @@ if(isset($_POST['register'])){
 /* تسجيل الدخول */
 if(isset($_POST['login'])){
     $username = trim($_POST['l_username']);
-    $password = trim($_POST['l_password']);
+    $password = trim($_POST['l_password']); // نص صريح بدون هاش
 
     $stmt = $conn->prepare("SELECT id,password,role FROM users WHERE username=?");
     $stmt->bind_param("s",$username);
@@ -63,18 +56,19 @@ if(isset($_POST['login'])){
         $stmt->bind_result($id,$db_password,$role);
         $stmt->fetch();
 
-        // مقارنة مباشرة
+        // مقارنة نصية مباشرة بدون هاش
         if($password === $db_password){
-            $_SESSION['user_id'] = $id;
             $_SESSION['username'] = $username;
             $_SESSION['role'] = $role;
+            $_SESSION['user_id'] = $id;
+
             header("Location: das.php");
             exit();
         } else {
-            $login_error = "❌ اسم المستخدم أو كلمة المرور خطأ";
+            $error = "❌ اسم المستخدم أو كلمة المرور خطأ";
         }
     } else {
-        $login_error = "❌ اسم المستخدم أو كلمة المرور خطأ";
+        $error = "❌ اسم المستخدم أو كلمة المرور خطأ";
     }
 
     $stmt->close();
@@ -82,12 +76,11 @@ if(isset($_POST['login'])){
 
 $conn->close();
 ?>
-
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<title>🎊 نظام الدخول 🎊</title>
+<title>نظام الدخول الاحتفالي</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@500&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -109,7 +102,6 @@ button:hover{background:#f093fb;}
 
 <div class="container">
 
-<!-- تسجيل الدخول -->
 <form method="POST" id="login">
 <h2>تسجيل الدخول</h2>
 <input type="text" name="l_username" placeholder="اسم المستخدم" required>
@@ -118,12 +110,11 @@ button:hover{background:#f093fb;}
 <span onclick="togglePassword('login_pass')">👁</span>
 </div>
 <button name="login">دخول</button>
-<p class="error"><?php echo $login_error; ?></p>
-<p class="msg"><?php echo $login_msg; ?></p>
+<p class="error"><?php echo $error ?></p>
+<p class="msg"><?php echo $msg ?></p>
 <div class="link" onclick="showRegister()">إنشاء حساب جديد 🎉</div>
 </form>
 
-<!-- إنشاء حساب -->
 <form method="POST" id="register">
 <h2>إنشاء حساب جديد</h2>
 <input type="text" name="username" placeholder="اسم المستخدم" required>
@@ -137,33 +128,18 @@ button:hover{background:#f093fb;}
 </select>
 <input type="text" name="manager_code" id="manager_code" placeholder="كود المدير" style="display:none;">
 <button name="register">تسجيل</button>
-<p class="error"><?php echo $register_error; ?></p>
-<p class="msg"><?php echo $register_msg; ?></p>
+<p class="error"><?php echo $error ?></p>
+<p class="msg"><?php echo $msg ?></p>
 <div class="link" onclick="showLogin()">رجوع لتسجيل الدخول 🔙</div>
 </form>
 
 </div>
 
 <script>
-function showRegister(){
-document.getElementById("login").style.display="none";
-document.getElementById("register").style.display="block";
-}
-function showLogin(){
-document.getElementById("register").style.display="none";
-document.getElementById("login").style.display="block";
-}
-function toggleManagerCode(){
-let role=document.getElementById("role").value;
-let code=document.getElementById("manager_code");
-if(role==="manager"){ code.style.display="block"; } 
-else{ code.style.display="none"; code.value=""; }
-}
-function togglePassword(id){
-let input=document.getElementById(id);
-if(input.type==="password"){ input.type="text"; } 
-else{ input.type="password"; }
-}
+function showRegister(){document.getElementById("login").style.display="none";document.getElementById("register").style.display="block";}
+function showLogin(){document.getElementById("register").style.display="none";document.getElementById("login").style.display="block";}
+function toggleManagerCode(){let role=document.getElementById("role").value;let code=document.getElementById("manager_code");if(role==="manager"){code.style.display="block";}else{code.style.display="none";code.value="";}}
+function togglePassword(id){let input=document.getElementById(id);if(input.type==="password"){input.type="text";}else{input.type="password";}}
 </script>
 
 </body>
